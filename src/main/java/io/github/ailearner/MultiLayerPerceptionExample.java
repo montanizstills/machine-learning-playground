@@ -4,13 +4,11 @@ import io.github.ailearner.utils.FileHandler;
 import io.github.ailearner.utils.NNTrainingDataHelper;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
-import org.nd4j.common.resources.strumpf.ResourceFile;
 import org.nd4j.linalg.api.ndarray.INDArray;
 import org.nd4j.linalg.factory.Nd4j;
 import org.nd4j.linalg.indexing.NDArrayIndex;
 
 import java.io.*;
-import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.function.Function;
 import java.util.stream.IntStream;
@@ -70,15 +68,15 @@ public class MultiLayerPerceptionExample {
             Nd4j.saveBinary(
                     tensor,
                     new File(System.getProperty("user.dir") + filePath));
-        } catch (IOException e) {
-            throw new RuntimeException(e);
+        } catch (Exception e) {
+            throw new Error(e);
         }
     }
 
     public ImmutablePair<INDArray, INDArray> loadTensorFromBinaryFile(String filePath) {
         try {
-            INDArray loadedTensorX = Nd4j.readBinary(new File(filePath + "_tensorX.bin"));
-            INDArray loadedTensorY = Nd4j.readBinary(new File(filePath + "_tensorY.bin"));
+            INDArray loadedTensorX = Nd4j.readBinary(new File(filePath + "tensorX.bin"));
+            INDArray loadedTensorY = Nd4j.readBinary(new File(filePath + "tensorY.bin"));
 
             // Alternative: load compressed format
             // INDArray loadedTensorX = Nd4j.readCompressed(new FileInputStream(filePath + "_tensorX.bin.z"));
@@ -93,11 +91,15 @@ public class MultiLayerPerceptionExample {
 
     public static void main(String[] args) {
         MultiLayerPerceptionExample mlp = new MultiLayerPerceptionExample();
-        long startTime = System.currentTimeMillis();
-        Pair<INDArray, INDArray> XY = mlp.prepareTrainingData(System.getProperty("user.dir") + "/src/main/java/resources/names.txt");
-        long endTime = System.currentTimeMillis();
-        System.out.printf("Training Completed in %s ms\n", endTime - startTime);
+//        long startTime = System.currentTimeMillis();
+//        Pair<INDArray, INDArray> XY = mlp.prepareTrainingData(System.getProperty("user.dir") + "/src/main/java/resources/names.txt");
+//        long endTime = System.currentTimeMillis();
+//        System.out.printf("Training Completed in %s ms\n", endTime - startTime);
         mlp.train();
+//        mlp.writeTensorToBinaryFile(XY.getLeft(),"tensor_output_fileX.bin");
+//        mlp.writeTensorToBinaryFile(XY.getRight(),"tensor_output_fileY.bin");
+//        INDArray result = mlp.loadTensorFromBinaryFile(System.getProperty("user.dir") + "/src/main/java/resources/").getLeft();
+
     }
 
 
@@ -133,10 +135,18 @@ public class MultiLayerPerceptionExample {
      */
     void train() {
         //Prepare Training Data
+
+        String path = System.getProperty("user.dir")+"/src/main/java/resources/names.txt";
+        FileInputStream fp;
+        try {
+            fp = new FileInputStream(path);
+        } catch (FileNotFoundException e) {
+            throw new RuntimeException(e);
+        }
+
+        BufferedReader reader = new BufferedReader(new InputStreamReader(fp));
+
         StringBuilder content = new StringBuilder();
-        String path = "src/main/java/resources/names.txt";
-        InputStream inputStream = getClass().getResourceAsStream(path);
-        BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream));
         String line;
         try {
             while ((line = reader.readLine()) != null) {
@@ -160,7 +170,7 @@ public class MultiLayerPerceptionExample {
 
         Integer contextLength = 3; // amount of chars used to predict next one;
         Integer numberOfNeurons = 100; // we want to fully connect all first layer input neurons to this;
-        Integer dimsToSqueeze = 2; // squeeze the first layer input to this dimension;
+        Integer dimsToSqueeze = 2; // squeeze the first layer input to this dimension; Down-projection into lower rank space.
 
         // get all chars from the names.txt file;
         // ArrayList allCharsX = null; //mlp.prepareTrainingData("/file/path/names.txt");
@@ -172,7 +182,7 @@ public class MultiLayerPerceptionExample {
         INDArray vectorX = Nd4j.zeros(XY.getLeft().length(), dimsToSqueeze);
 
         // first layer output vector: in(contextLength) => out(numberOfSecondLayerInputNeurons)
-        INDArray vectorY = Nd4j.rand(contextLength, numberOfNeurons);
+        INDArray vectorY = Nd4j.rand(contextLength, numberOfNeurons); // first "of many" out/up-projections
 
         // embedding vector (first layer of our neural net)
         INDArray C = Nd4j.create(1);
@@ -188,7 +198,8 @@ public class MultiLayerPerceptionExample {
 
         // softmax output
         INDArray tokenOut = Nd4j.nn().softmax(layer2); // P(w_i | context);
-
+        System.out.println(tokenOut.entropyNumber());
+        System.exit(1);
         /**
          * Training:
          * We need to calc the Negative Log Likelihood. # Manual Impl
